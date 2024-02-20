@@ -3,6 +3,7 @@ package scraper
 import (
 	"fmt"
 	"html"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -344,13 +345,105 @@ func ParseManhwaPageList(doc *goquery.Document, context *quickjs.Context) *[]Pag
 	return &pages
 }
 
-func ParseMangaPageList(doc *goquery.Document, context *quickjs.Context) *[]Page {
+func ParseMangaPageList(doc *goquery.Document, url string, context *quickjs.Context) *[]Page {
 	pages := []Page{}
+
+	html, err := doc.Html()
+	if err != nil {
+		panic(err)
+	}
+	secretKey, err := ExtractSecretKey(html)
+	if err != nil {
+		panic(err)
+	}
+	chapterIdStart := strings.Index(html, "chapterid")
+	chapterIdEnd := strings.Index(html[chapterIdStart:], ";")
+
+	chapterId := html[chapterIdStart+11 : chapterIdStart+chapterIdEnd]
+	chapterId = strings.TrimSpace(chapterId)
+
+	var pn string
+	var exists bool
+	chapterPagesElement := doc.Find(".pager-list-left > span").First()
+
+	aTags := chapterPagesElement.Find("a")
+	aTags.Each(func(i int, s *goquery.Selection) {
+		if i == aTags.Length()-2 {
+			pn, exists = s.Attr("data-page")
+			if !exists {
+				panic("page number does not exist")
+			}
+		}
+	})
+
+	pageNumber, err := strconv.Atoi(pn)
+	if err != nil {
+		panic(err)
+	}
+	pageBase := url[:strings.LastIndex(url, "/")]
+
+	for i := 0; i < pageNumber; i++ {
+		pageLink := fmt.Sprintf("%s/chapterfun.ashx?cid=%s&page=%d&key=%s", pageBase, chapterId, i, secretKey)
+
+		var responseText string
+		for j := 0; j < 3; j++ {
+			request, err := http.NewRequest(http.MethodGet, pageLink, nil)
+			if err != nil {
+				panic(err)
+			}
+			request.Header.Set("Referer", url)
+			request.Header.Set("Accept", "*/*")
+			request.Header.Set("Accept-Language", "en-US;en;q=0.9")
+			request.Header.Set("Connection", "keep-alive")
+			request.Header.Set("Host", "www.mangahere.cc")
+			// TODO: set user-agent from https://explore.whatismybrowser.com/useragents/explore/
+			request.Header.Set("User-Agent", "")
+			request.Header.Set("X-Requested-With", "XMLHttpRequest")
+
+			response, err := http.DefaultClient.Do(request)
+			if err != nil {
+				panic(err)
+			}
+			bodyBytes, err := io.ReadAll(response.Body)
+			if err != nil {
+				panic(err)
+			}
+			if len(bodyBytes) > 0 {
+				responseText = string(bodyBytes)
+				responseText = strings.TrimLeft(responseText, "eval")
+				break
+			} else {
+				secretKey = ""
+			}
+		}
+
+		deObsfucatedScript, err := context.Eval(responseText)
+		if err != nil {
+			panic(err)
+		}
+		script := deObsfucatedScript.String()
+
+		baseLinkStart := strings.Index(script, "pix=") + 5
+		baseLinkEnd := strings.Index(script[baseLinkStart:], ";") - 1
+		baseLink := script[baseLinkStart : baseLinkStart+baseLinkEnd]
+
+		// fmt.Println("base link: ", baseLink)
+
+		imageLinkStart := strings.Index(script, "pvalue=") + 9
+		imageLinkEnd := strings.Index(script[imageLinkStart:], "\"")
+		imageLink := script[imageLinkStart : imageLinkStart+imageLinkEnd]
+
+		// fmt.Println("image link: ", imageLink)
+
+		pages = append(pages, Page{i - 1, "", "https:" + baseLink + imageLink})
+	}
+
+	pages = *DropLastPageIfBroken(&pages)
 
 	return &pages
 }
 
-func ParsePageList(doc *goquery.Document) (*[]Page, error) {
+func ParsePageList(doc *goquery.Document, url string) (*[]Page, error) {
 	scrollBarSelector := "script[src*=chapter_bar]"
 	scrollBar := doc.Find(scrollBarSelector)
 
@@ -364,7 +457,7 @@ func ParsePageList(doc *goquery.Document) (*[]Page, error) {
 	// manga reader has no scrollbar
 	if scrollBar.Length() == 0 {
 		// is manga
-		ParseMangaPageList(doc, context)
+		ParseMangaPageList(doc, url, context)
 	} else {
 		ParseManhwaPageList(doc, context)
 	}
