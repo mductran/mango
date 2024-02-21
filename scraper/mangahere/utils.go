@@ -426,14 +426,11 @@ func ParseMangaPageList(doc *goquery.Document, url string, context *quickjs.Cont
 		baseLinkStart := strings.Index(script, "pix=") + 5
 		baseLinkEnd := strings.Index(script[baseLinkStart:], ";") - 1
 		baseLink := script[baseLinkStart : baseLinkStart+baseLinkEnd]
-
-		// fmt.Println("base link: ", baseLink)
+		baseLink = strings.ReplaceAll(baseLink, ".org", ".cc")
 
 		imageLinkStart := strings.Index(script, "pvalue=") + 9
 		imageLinkEnd := strings.Index(script[imageLinkStart:], "\"")
 		imageLink := script[imageLinkStart : imageLinkStart+imageLinkEnd]
-
-		// fmt.Println("image link: ", imageLink)
 
 		pages = append(pages, Page{i - 1, "", "https:" + baseLink + imageLink})
 	}
