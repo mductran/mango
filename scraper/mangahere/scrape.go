@@ -160,6 +160,25 @@ func ParsePageList(doc *goquery.Document, url string) *[]Page {
 	}
 }
 
+func ParseChapter(s *goquery.Selection) *Chapter {
+	chapterLink, _ := s.Attr("href")
+	chapterTitle, _ := s.Attr("title")
+
+	fmt.Println("parsed chapter: ", chapterTitle)
+	response, err := http.Get("https://www.mangahere.cc" + chapterLink)
+	if err != nil {
+		panic(err)
+	}
+	defer response.Body.Close()
+	doc, _ := goquery.NewDocumentFromReader(response.Body)
+
+	pageList := ParsePageList(doc, "https://www.mangahere.cc"+chapterLink)
+
+	return &Chapter{
+		Url: chapterLink, Name: chapterTitle, Pages: *pageList,
+	}
+}
+
 func parseChapterList(url string, chapterList *[]Chapter) {
 	response, err := http.Get("https://www.mangahere.cc" + url)
 	if err != nil {
@@ -173,19 +192,8 @@ func parseChapterList(url string, chapterList *[]Chapter) {
 	}
 
 	doc.Find(".detail-main-list li a").Each(func(i int, s *goquery.Selection) {
-		chapterLink, _ := s.Attr("href")
-		chapterTitle, _ := s.Attr("title")
-
-		fmt.Println("parsed chapter: ", chapterTitle)
-		response, _ := http.Get("https://www.mangahere.cc" + chapterLink)
-		defer response.Body.Close()
-		doc, _ := goquery.NewDocumentFromReader(response.Body)
-
-		pageList := ParsePageList(doc, "https://www.mangahere.cc"+chapterLink)
-
-		*chapterList = append(*chapterList, Chapter{
-			Url: chapterLink, Name: chapterTitle, Pages: *pageList,
-		})
+		chapter := ParseChapter(s)
+		*chapterList = append(*chapterList, *chapter)
 	})
 }
 
