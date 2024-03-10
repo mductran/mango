@@ -54,13 +54,13 @@ func ParseDate(s string) time.Time {
 	}
 }
 
-func UpdateTitle(title *mangahere.Manga) *[]mangahere.Chapter {
+func UpdateTitle(title *Manga) *[]Chapter {
 	detailsPage, err := http.Get("https://mangahere.cc" + title.Url)
 	check(err)
 	detailsPageBody, err := goquery.NewDocumentFromReader(detailsPage.Body)
 	check(err)
 
-	var newChapterList []mangahere.Chapter
+	var newChapterList []Chapter
 
 	detailsPageBody.Find(".detail-main-list li a").EachWithBreak(func(i int, s *goquery.Selection) bool {
 
@@ -69,7 +69,7 @@ func UpdateTitle(title *mangahere.Manga) *[]mangahere.Chapter {
 		uploadTime, _ := node.Html()
 
 		if ParseDate(uploadTime).After(title.LastUpdate) || title.LastUpdate.IsZero() {
-			newChapterList = append(newChapterList, ParseChapter(s))
+			newChapterList = append(newChapterList, *ParseChapter(s))
 			return true
 		} else {
 			return false
