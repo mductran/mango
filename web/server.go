@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"html/template"
 	"io"
 
@@ -17,6 +18,7 @@ type TemplateRegistry struct {
 func (t *TemplateRegistry) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
 	tmpl, ok := t.templates[name]
 	if !ok {
+		fmt.Println("template not found", name)
 		err := errors.New("Template not found -> " + name)
 		return err
 	}
@@ -27,8 +29,8 @@ func Serve() {
 	server := echo.New()
 
 	templates := make(map[string]*template.Template)
-	templates["home"] = template.Must(template.ParseFiles("templates/home.html", "view/base.html"))
-	templates["result"] = template.Must(template.ParseFiles("templates/result.html", "view/base.html"))
+	templates["home"] = template.Must(template.ParseFiles("web/templates/home.html", "web/templates/base.html"))
+	templates["result"] = template.Must(template.ParseFiles("web/templates/result.html", "web/templates/base.html"))
 
 	server.Renderer = &TemplateRegistry{
 		templates: templates,

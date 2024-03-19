@@ -7,7 +7,7 @@ import (
 )
 
 func HomeHandler(c echo.Context) error {
-	return c.Render(http.StatusOK, "home.html", map[string]interface{}{
+	return c.Render(http.StatusOK, "home", map[string]interface{}{
 		"name": "Home",
 		"msg":  "Search Page",
 	})
