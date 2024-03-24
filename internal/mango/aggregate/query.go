@@ -116,7 +116,7 @@ func AggregateNeighbourSegments(candidates *[]Hex, buckets int) *map[int][]strin
 	return &groups
 }
 
-func Query(hexstring string) {
+func Query(hexstring string) *map[int][]string {
 	client, err := connector.Connect()
 	if err != nil {
 		panic(err)
@@ -167,4 +167,6 @@ func Query(hexstring string) {
 	for key, val := range *groups {
 		fmt.Printf("key: %d, val: %q, len(val): %d\n", key, val, len(val))
 	}
+
+	return groups
 }

@@ -1,43 +1,56 @@
 package web
 
 import (
-	"errors"
-	"fmt"
-	"html/template"
-	"io"
-
-	"search/web/handler"
+	"net/http"
+	query "search/internal/mango/aggregate"
+	"search/internal/mango/hash"
+	"sync"
 
 	"github.com/labstack/echo/v4"
 )
 
-type TemplateRegistry struct {
-	templates map[string]*template.Template
+var lock sync.Mutex
+
+type QueryResult struct {
+	PHash   string            `json:"phash,omitempty" xml:"phash"`
+	DHash   string            `json:"dhash,omitempty" xml:"dhash"`
+	Results *map[int][]string `json:"results,omitempty" xml:"results"`
 }
 
-func (t *TemplateRegistry) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
-	tmpl, ok := t.templates[name]
-	if !ok {
-		fmt.Println("template not found", name)
-		err := errors.New("Template not found -> " + name)
-		return err
+type HelloWorldResponse struct {
+	Message string `json:"message,omitempty" xml:"message"`
+}
+
+func SearchHandler(c echo.Context) error {
+	lock.Lock()
+	defer lock.Unlock()
+
+	// check if user-uploaded file or from url
+	// if form's text field is empty, user submitted file
+	c.Request().ParseForm()
+	if c.Request().PostForm.Has("image-url") {
+		url := c.FormValue("image-url")
+		mat, err := hash.ReadImageFromURL(url)
+		if err != nil {
+			return err
+		}
+		dhash := hash.Dhash(mat)
+		phash := hash.Phash(mat)
+		results := query.Query(dhash)
+		for k, v := range *query.Query(phash) {
+			(*results)[k] = v
+		}
+		return c.JSON(http.StatusOK, QueryResult{phash, dhash, results})
+	} else {
+		return nil
 	}
-	return tmpl.ExecuteTemplate(w, "base.html", data)
 }
 
 func Serve() {
 	server := echo.New()
-
-	templates := make(map[string]*template.Template)
-	templates["home"] = template.Must(template.ParseFiles("web/templates/home.html", "web/templates/base.html"))
-	templates["result"] = template.Must(template.ParseFiles("web/templates/result.html", "web/templates/base.html"))
-
-	server.Renderer = &TemplateRegistry{
-		templates: templates,
-	}
-
-	server.GET("/", handler.HomeHandler)
-	server.GET("/results", handler.ResultHandler)
-
-	server.Logger.Fatal(server.Start(":8080"))
+	server.POST("/search/", SearchHandler)
+	server.GET("/", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, &HelloWorldResponse{"hello client"})
+	})
+	server.Logger.Fatal(server.Start("localhost:5000"))
 }

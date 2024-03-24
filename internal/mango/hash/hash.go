@@ -1,7 +1,12 @@
 package hash
 
 import (
+	"fmt"
 	"image"
+	"net/http"
+
+	_ "image/jpeg"
+	_ "image/png"
 
 	"gocv.io/x/gocv"
 )
@@ -83,4 +88,26 @@ func Dhash(img *gocv.Mat) string {
 	}
 
 	return out
+}
+
+func ReadImageFromURL(url string) (*gocv.Mat, error) {
+	resp, err := http.Get(url)
+	if err != nil || resp.Status != "200 OK" {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	fmt.Println(resp.Status)
+
+	img, _, err := image.Decode(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	mat, err := gocv.ImageToMatRGB(img)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mat, nil
 }
